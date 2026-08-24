@@ -1,93 +1,47 @@
 #include "connection_handler.h"
+#include "secrets.h"
 
-WiFiClient espClient;
-PubSubClient client(espClient);
-unsigned long lastMsg = 0;
-char msg[64];
-int value = 0;
+espMqttClient mqttClient;
 
-int ledPin = 4;
+const char* ssid = "Sunrise_3646";
+const char* password = "dggkrebs";
+const char* mqtt_server = "192.168.1.148";
 
-const char* ssid = WIFI_SSID;
-const char* password = WIFI_PASS;
+static unsigned long lastReconnect = 0;
 
-const char* mqtt_server = MQTT_HOST;
-const uint16_t mqtt_port = MQTT_PORT;
+static void onMqttConnect(bool sessionPresent) {
+  Serial.println("MQTT connected");
+}
 
-void setup_wifi() {
-  delay(10);
-  // We start by connecting to a WiFi network
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
+  Serial.printf("MQTT lost, reason %u\n", static_cast<uint8_t>(reason));
+  lastReconnect = millis();
 }
 
 void connection_init() {
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) delay(250);
+
+  mqttClient.onConnect(onMqttConnect);
+  mqttClient.onDisconnect(onMqttDisconnect);
+  mqttClient.setServer(mqtt_server, 1883);
+  mqttClient.setCredentials(MQTT_USER, MQTT_PASS);
+  mqttClient.setClientId(MQTT_USER);
+  mqttClient.connect();
 }
 
-void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(". Message: ");
-  String messageTemp;
-  
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)message[i]);
-    messageTemp += (char)message[i];
-  }
-  Serial.println();
-
-  if (String(topic) == "esp32/output") {
-    Serial.print("Changing output to ");
-    if(messageTemp == "on"){
-      Serial.println("on");
-      digitalWrite(ledPin, HIGH);
-    }
-    else if(messageTemp == "off"){
-      Serial.println("off");
-      digitalWrite(ledPin, LOW);
-    }
-  }
-}
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect("ESP8266Client")) {
-      Serial.println("connected");
-      // Subscribe
-      client.subscribe("esp32/output");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+void connection_loop() {
+  if (!mqttClient.connected() && millis() - lastReconnect > 5000) {
+      lastReconnect = millis();
+    if (WiFi.isConnected()) mqttClient.connect();
   }
 }
 
 bool publish(const char* topic, const Reading& r) {
   char payload[192];
-    snprintf(payload, sizeof(payload),
-             "{\"temp\":%.2f,\"hum\":%.2f,\"co2\":%u}",
-             r.temp, r.humidity, r.co2);
-    return client.publish(topic, payload);
+  snprintf(payload, sizeof(payload),
+            "{\"temp\":%.2f,\"hum\":%.2f,\"co2\":%u,\"pm25_ugm3\":%.2f}",
+            r.temp, r.humidity, r.co2, r.pm25_ugm3);
+  return mqttClient.publish(topic, 0, true, payload) != 0;
 }

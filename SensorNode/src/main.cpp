@@ -11,23 +11,13 @@ void setup() {
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
+  connection_loop();
 
-  Reading r;
-
-  
-
-  delay(30000);
-  
-  
-
-  long now = millis();
-  if (now - lastMsg > 5000) {
+  static unsigned long lastMsg = 0; 
+  unsigned long now = millis();
+  if (now - lastMsg > 30000) {
     lastMsg = now;
-
+    Reading r;
     if (sensors_read(r)) publish(NODE_TOPIC, r); 
 
   }
