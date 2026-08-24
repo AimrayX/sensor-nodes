@@ -4,7 +4,7 @@
 #include <Adafruit_PM25AQI.h>
 
 static Adafruit_BME280 bme;
-static Adafruit_PM25AQI aqi = Adafruit_PM25AQI(); // Create the sensor object
+static Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
 
 bool sensors_init() {
 

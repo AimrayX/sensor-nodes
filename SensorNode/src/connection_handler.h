@@ -4,14 +4,16 @@
 #include <PubSubClient.h>
 
 #include "sensors.h"
+#include "secrets.h"
 
-const char* ssid = "REPLACE_WITH_SSID";
-const char* password = "REPLACE_WITH_PASSWORD";
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASS;
 
-const char* mqtt_server = "MQTT_BROKER_IP_ADDRESS";
+const char* mqtt_server = MQTT_HOST;
+const uint16_t mqtt_port = MQTT_PORT;
 
 WiFiClient espClient;
-PubSubClient client(espClient);
+extern PubSubClient client;
 long lastMsg = 0;
 char msg[50];
 int value = 0;
@@ -22,4 +24,4 @@ void setup_wifi();
 void connection_init();
 void callback(char* topic, byte* message, unsigned int length);
 void reconnect();
-//void publish(NODE_TOPIC, Reading& r);
+bool publish(const char* topic, const Reading& r);

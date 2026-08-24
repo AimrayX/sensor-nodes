@@ -38,10 +38,6 @@ void callback(char* topic, byte* message, unsigned int length) {
   }
   Serial.println();
 
-  // Feel free to add more if statements to control more GPIOs with MQTT
-
-  // If a message is received on the topic esp32/output, you check if the message is either "on" or "off". 
-  // Changes the output state according to the message
   if (String(topic) == "esp32/output") {
     Serial.print("Changing output to ");
     if(messageTemp == "on"){
@@ -72,4 +68,12 @@ void reconnect() {
       delay(5000);
     }
   }
+}
+
+bool publish(const char* topic, const Reading& r) {
+  char payload[192];
+    snprintf(payload, sizeof(payload),
+             "{\"temp\":%.2f,\"hum\":%.2f,\"co2\":%u}",
+             r.temp, r.humidity, r.co2);
+    return client.publish(topic, payload);
 }

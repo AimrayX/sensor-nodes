@@ -4,6 +4,8 @@
 struct Reading {
     float pm25_ugm3 = NAN;
     float co2 = NAN;
+    float temp = NAN;
+    float humidity = NAN;
 
 };
 
