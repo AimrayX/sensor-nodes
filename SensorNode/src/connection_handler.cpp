@@ -1,5 +1,19 @@
 #include "connection_handler.h"
 
+WiFiClient espClient;
+PubSubClient client(espClient);
+unsigned long lastMsg = 0;
+char msg[64];
+int value = 0;
+
+int ledPin = 4;
+
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASS;
+
+const char* mqtt_server = MQTT_HOST;
+const uint16_t mqtt_port = MQTT_PORT;
+
 void setup_wifi() {
   delay(10);
   // We start by connecting to a WiFi network

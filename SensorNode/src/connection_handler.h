@@ -6,19 +6,13 @@
 #include "sensors.h"
 #include "secrets.h"
 
-const char* ssid = WIFI_SSID;
-const char* password = WIFI_PASS;
-
-const char* mqtt_server = MQTT_HOST;
-const uint16_t mqtt_port = MQTT_PORT;
-
-WiFiClient espClient;
+extern WiFiClient espClient;
 extern PubSubClient client;
-long lastMsg = 0;
-char msg[50];
-int value = 0;
+extern unsigned long lastMsg;
+extern char msg[64];
+extern int value;
 
-const int ledPin = 4;
+extern int ledPin;
 
 void setup_wifi();
 void connection_init();
