@@ -5,12 +5,12 @@
 
 static Adafruit_BME280 bme;
 static Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
-
+// TO-DO
 bool sensors_init() {
 
   return true;
 }
-
+// TO-DO
 bool sensors_read(Reading& out) {
   out.co2 = NAN;
 

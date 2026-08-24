@@ -3,10 +3,6 @@
 
 espMqttClient mqttClient;
 
-const char* ssid = "Sunrise_3646";
-const char* password = "dggkrebs";
-const char* mqtt_server = "192.168.1.148";
-
 static unsigned long lastReconnect = 0;
 
 static void onMqttConnect(bool sessionPresent) {
@@ -20,12 +16,12 @@ static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
 
 void connection_init() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) delay(250);
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
-  mqttClient.setServer(mqtt_server, 1883);
+  mqttClient.setServer(MQTT_HOST, 1883);
   mqttClient.setCredentials(MQTT_USER, MQTT_PASS);
   mqttClient.setClientId(MQTT_USER);
   mqttClient.connect();
