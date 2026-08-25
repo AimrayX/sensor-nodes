@@ -39,6 +39,6 @@ bool publish(const char* topic, const Reading& r) {
   snprintf(payload, sizeof(payload),
             "{\"temp\":%.2f,\"hum\":%.2f,\"co2\":%u,\"pm25_ugm3\":%.2f}",
             r.temp, r.humidity, r.co2, r.pressure,
-            r.pm10_standard, r.pm25_standard, r.pm100_standard);
+            r.pm1, r.pm25, r.pm10);
   return mqttClient.publish(topic, 0, true, payload) != 0;
 }

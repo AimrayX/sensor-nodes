@@ -5,13 +5,21 @@
 
 static Adafruit_BME280 bme;
 static Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
+static bool bmeOk = false;
+static bool aqiOk  = false;
 
 bool sensors_init() {
   Serial.println(F("Setting up BME280"));
 
-  if (!bme.begin(0x76)) {
+  bmeOk = bme.begin();
+  if (bmeOk) {
+    bme.setSampling(Adafruit_BME280::MODE_FORCED,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::FILTER_OFF);
+  } else {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
-    while (1) delay(10);
   }
 
   Serial.println("BME280 setup finished");
@@ -39,19 +47,23 @@ bool sensors_read(Reading& out) {
     return false;
   }
 
-  if(!bme.readPressure()) {
-    Serial.println("Could not read from BME280");
-    
-    delay(500);
-    return false;
+  if (bmeOk && bme.takeForcedMeasurement()) {
+  state.temperature = bme.readTemperature();
+  state.humidity    = bme.readHumidity();
+  state.pressure    = bme.readPressure();
+  } else {
+    state.temperature.valid = false;
+    state.humidity.valid    = false;
+    state.pressure.valid    = false;
   }
 
-  out.pm10_standard = data.pm10_standard;
-  out.pm25_standard = data.pm25_standard;
-  out.pm100_standard = data.pm100_standard;
-  out.temp = bme.readTemperature();
-  out.humidity = bme.readHumidity();
-  out.pressure = bme.readPressure();
+  out.pm1 = data.pm10_standard;
+  out.pm25 = data.pm25_standard;
+  out.pm10 = data.pm100_standard;
+  bme.performreading();
+  out.temp = bme.temperature;
+  out.humidity = bme.humidity;
+  out.pressure = bme.pressure;
 
   return true;
 }

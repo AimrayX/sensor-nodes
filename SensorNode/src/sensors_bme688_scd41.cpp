@@ -13,7 +13,9 @@ bool sensors_init() {
   Serial.println(F("Setting up BME688"));
 
   bmeOk = bme.begin();
-  if (!bmeOk) Serial.println("BME688 not found, continuing without it");
+  if (!bmeOk) {
+    Serial.println("BME688 not found, continuing without it");
+  }
 
   Serial.println("BME688 setup finished");
   Serial.println();
@@ -59,15 +61,14 @@ bool sensors_init() {
 
   return true;
 }
-// TO-DO
+
 bool sensors_read(Reading& out) {
   if (bmeOk) {
     bme.performReading();
     out.temp = bme.temperature;
     out.humidity = bme.humidity;
     out.pressure = bme.pressure;
-  }
-  else {
+  } else {
     Serial.print("Skipping bme688 due to error or no new data");
   }
 
@@ -78,9 +79,12 @@ bool sensors_read(Reading& out) {
     float relativeHumidity = 0.0;
     scd.readMeasurement(co2Concentration, temperature, relativeHumidity);
     out.co2 = co2Concentration;
-  }
-  else {
+  } else {
     Serial.print("Skipping scd41 due to error or no new data");
+  }
+
+  if(!bmeOk && (!scdOk || !dataReady)) {
+    return false;
   }
   
   return true;

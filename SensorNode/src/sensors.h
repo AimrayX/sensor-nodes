@@ -2,13 +2,13 @@
 #include <math.h>
 
 struct Reading {
-    float pm10_standard = NAN;
-    float pm25_standard = NAN;
-    float pm100_standard = NAN;
-    float co2 = NAN;
-    float temp = NAN;
-    float humidity = NAN;
-    float pressure = NAN;
+    float pm1      = NAN; // µg/m³
+    float pm25     = NAN; // µg/m³
+    float pm10     = NAN; // µg/m³
+    float co2      = NAN; // ppm
+    float temp     = NAN; // °C
+    float humidity = NAN; // %
+    float pressure = NAN; // Pa
 
 };
 
