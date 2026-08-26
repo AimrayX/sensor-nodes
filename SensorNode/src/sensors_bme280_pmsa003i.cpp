@@ -8,10 +8,10 @@ static Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
 static bool bmeOk = false;
 static bool aqiOk  = false;
 
-bool sensors_init() {
+bool sensors_init(TwoWire &wire) {
   Serial.println(F("Setting up BME280"));
 
-  bmeOk = bme.begin();
+  bmeOk = bme.begin(BME280_ADDRESS, &wire);
   if (bmeOk) {
     bme.setSampling(Adafruit_BME280::MODE_FORCED,
                     Adafruit_BME280::SAMPLING_X1,

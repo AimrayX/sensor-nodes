@@ -1,11 +1,16 @@
 #include <Arduino.h>
+#include <Wire.h>
+
 #include "sensors.h"
 #include "connection_handler.h"
+
 
 void setup() {
   Serial.begin(115200);
   Serial.println("Hello from the C6 on Arduino!");
-  sensors_init();
+
+  Wire.begin(SDA, SCL);
+  sensors_init(Wire);
   connection_init();
 }
 

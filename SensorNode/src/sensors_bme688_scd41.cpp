@@ -2,17 +2,16 @@
 
 #include <Adafruit_BME680.h>
 #include <SensirionI2cScd4x.h>
-#include <Wire.h>
 
 static Adafruit_BME680 bme;
 static SensirionI2cScd4x scd = SensirionI2cScd4x();
 static bool bmeOk = false;
 static bool scdOk  = false;
 
-bool sensors_init() {
+bool sensors_init(TwoWire &wire) {
   Serial.println(F("Setting up BME688"));
 
-  bmeOk = bme.begin();
+  bmeOk = bme.begin(BME68X_DEFAULT_ADDRESS, &wire);
   if (!bmeOk) {
     Serial.println("BME688 not found, continuing without it");
   }

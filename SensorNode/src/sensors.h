@@ -12,5 +12,5 @@ struct Reading {
 
 };
 
-bool sensors_init();
+bool sensors_init(TwoWire &wire);
 bool sensors_read(Reading& out);
