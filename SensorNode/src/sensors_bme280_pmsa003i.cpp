@@ -26,9 +26,9 @@ bool sensors_init() {
   Serial.println();
 
   Serial.println(F("Setting up PMSA_003I"));
-  if (!aqi.begin_I2C()) {
+  aqiOk = aqi.begin_I2C();
+  if (!aqiOk) {
     Serial.println("Could not find PMSA_003I sensor, check wiring!");
-    while (1) delay(10);
   }
 
   Serial.println("PMSA_003I setup finished");
@@ -40,30 +40,23 @@ bool sensors_init() {
 bool sensors_read(Reading& out) {
   PM25_AQI_Data data;
 
-  if (!aqi.read(&data)) {
-    Serial.println("Could not read from AQI");
-    
-    delay(500);
-    return false;
+  if (aqi.read(&data)) {
+    out.pm1 = data.pm10_standard;
+    out.pm25 = data.pm25_standard;
+    out.pm10 = data.pm100_standard;
+  } else {
+    Serial.print("Skipping PMSA003I due to error or no new data");
   }
 
   if (bmeOk && bme.takeForcedMeasurement()) {
-  state.temperature = bme.readTemperature();
-  state.humidity    = bme.readHumidity();
-  state.pressure    = bme.readPressure();
+  out.temp = bme.readTemperature();
+  out.humidity = bme.readHumidity();
+  out.pressure = bme.readPressure();
   } else {
-    state.temperature.valid = false;
-    state.humidity.valid    = false;
-    state.pressure.valid    = false;
+    Serial.print("Skipping bme280 due to error or no new data");
   }
 
-  out.pm1 = data.pm10_standard;
-  out.pm25 = data.pm25_standard;
-  out.pm10 = data.pm100_standard;
-  bme.performreading();
-  out.temp = bme.temperature;
-  out.humidity = bme.humidity;
-  out.pressure = bme.pressure;
+  
 
   return true;
 }
