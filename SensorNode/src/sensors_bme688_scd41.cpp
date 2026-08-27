@@ -22,7 +22,7 @@ bool sensors_init(TwoWire &wire) {
   Serial.println(F("Setting up SCD41"));
 
   scdOk = true;
-  scd.begin(&wire, 0x62);
+  scd.begin(wire, 0x62);
   uint64_t serialNumber = 0;
   delay(30);
   // Ensure sensor is in clean state
@@ -37,7 +37,7 @@ bool sensors_init(TwoWire &wire) {
     Serial.print("Error trying to execute reinit()");
     scdOk = false;
   }
-  // Read out information about the sensor
+
   if (scd.getSerialNumber(serialNumber)) {
     Serial.print("Error trying to execute getSerialNumber()");
     scdOk = false;
@@ -45,10 +45,6 @@ bool sensors_init(TwoWire &wire) {
   Serial.print("serial number: ");
   Serial.println();
 
-  // If temperature offset and/or sensor altitude compensation
-  // is required, you should call the respective functions here.
-  // Check out the header file for the function definitions.
-  // Start periodic measurements (5sec interval)
   if (scd.startPeriodicMeasurement()) {
     Serial.print("Error trying to execute startPeriodicMeasurement()");
     scdOk = false;
