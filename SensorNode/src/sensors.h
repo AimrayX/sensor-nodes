@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #include <math.h>
 
 struct Reading {
@@ -12,5 +13,10 @@ struct Reading {
 
 };
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#include <Wire.h>
+
 bool sensors_init(TwoWire &wire);
 bool sensors_read(Reading& out);
+#endif

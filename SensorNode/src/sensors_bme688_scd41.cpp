@@ -22,8 +22,7 @@ bool sensors_init(TwoWire &wire) {
   Serial.println(F("Setting up SCD41"));
 
   scdOk = true;
-  Wire.begin();
-  scd.begin(Wire, 0x62);
+  scd.begin(&wire, 0x62);
   uint64_t serialNumber = 0;
   delay(30);
   // Ensure sensor is in clean state
@@ -57,6 +56,8 @@ bool sensors_init(TwoWire &wire) {
 
   Serial.println("SCD41 setup finished");
   Serial.println();
+
+  if (!bmeOk || !scdOk) return false;
 
   return true;
 }

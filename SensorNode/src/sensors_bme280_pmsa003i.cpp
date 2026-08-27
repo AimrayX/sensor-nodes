@@ -26,13 +26,15 @@ bool sensors_init(TwoWire &wire) {
   Serial.println();
 
   Serial.println(F("Setting up PMSA_003I"));
-  aqiOk = aqi.begin_I2C();
+  aqiOk = aqi.begin_I2C(&wire);
   if (!aqiOk) {
     Serial.println("Could not find PMSA_003I sensor, check wiring!");
   }
 
   Serial.println("PMSA_003I setup finished");
   Serial.println();
+
+  if (!bmeOk || !aqiOk) return false;
 
   return true;
 }

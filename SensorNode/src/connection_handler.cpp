@@ -1,12 +1,16 @@
 #include "connection_handler.h"
 #include "secrets.h"
+#include "payload.h"
 
 espMqttClient mqttClient;
 
 static unsigned long lastReconnect = 0;
 
 static void onMqttConnect(bool sessionPresent) {
-  Serial.println("MQTT connected");
+  char buf[96];
+  snprintf(buf, sizeof(buf), "{\"reset\":%d,\"uptime\":%lu}",
+           esp_reset_reason(), millis() / 1000);
+  mqttClient.publish("flat/" NODE_NAME "/status", 0, true, buf);
 }
 
 static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
@@ -16,29 +20,55 @@ static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
 
 void connection_init() {
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED) delay(250);
 
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) delay(250);
+
+  if (!WiFi.isConnected()) {
+  Serial.printf("WiFi failed, status=%d\n", WiFi.status());
+} else {
+  Serial.printf("WiFi ok, ip=%s rssi=%d\n",
+                WiFi.localIP().toString().c_str(), WiFi.RSSI());
+}
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
   mqttClient.setServer(MQTT_HOST, 1883);
   mqttClient.setCredentials(MQTT_USER, MQTT_PASS);
-  mqttClient.setClientId(MQTT_USER);
-  mqttClient.connect();
+  mqttClient.setClientId(NODE_NAME);
 }
 
 void connection_loop() {
+  mqttClient.loop();
+
+  static unsigned long lastWifiTry = 0;
+  if (!WiFi.isConnected()) {
+    if (millis() - lastWifiTry > 10000) {
+      lastWifiTry = millis();
+      WiFi.disconnect(false, false);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+    }
+    return;
+  }
+
   if (!mqttClient.connected() && millis() - lastReconnect > 5000) {
-      lastReconnect = millis();
-    if (WiFi.isConnected()) mqttClient.connect();
+    lastReconnect = millis();
+    Serial.println("mqtt connect attempt");
+    mqttClient.connect();
   }
 }
 
 bool publish(const char* topic, const Reading& r) {
   char payload[192];
-  snprintf(payload, sizeof(payload),
-            "{\"temp\":%.2f,\"hum\":%.2f,\"co2\":%u,\"pm25_ugm3\":%.2f}",
-            r.temp, r.humidity, r.co2, r.pressure,
-            r.pm1, r.pm25, r.pm10);
+  int len = build_payload(payload, sizeof(payload), r);
+  if (len < 0) { Serial.println("build_payload failed"); return false; }
+
+  if (!mqttClient.connected()) {
+    Serial.println("publish skipped, mqtt not connected");
+    return false;
+  }
+
+  Serial.printf("pub %s -> %s\n", topic, payload);
   return mqttClient.publish(topic, 0, true, payload) != 0;
 }
