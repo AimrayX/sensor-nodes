@@ -10,7 +10,6 @@ struct Reading {
     float temp     = NAN; // °C
     float humidity = NAN; // %
     float pressure = NAN; // Pa
-
 };
 
 #ifdef ARDUINO
@@ -18,5 +17,6 @@ struct Reading {
 #include <Wire.h>
 
 bool sensors_init(TwoWire &wire);
+void sensors_tick();
 bool sensors_read(Reading& out);
 #endif

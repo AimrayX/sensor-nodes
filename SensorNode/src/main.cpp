@@ -25,8 +25,10 @@ void setup() {
   connection_init();
   ota_init(NODE_NAME);
   watchdog_init();
+  lastGoodPublish = millis();
 
-  Serial.printf("TWDT subscribed: %s\n", esp_task_wdt_status(NULL) == ESP_OK ? "yes" : "NO");
+  Serial.printf("TWDT subscribed: %s\n",
+                esp_task_wdt_status(NULL) == ESP_OK ? "yes" : "NO");
 }
 
 void loop() {
@@ -35,6 +37,7 @@ void loop() {
 
   esp_task_wdt_reset();
   connection_loop();
+  sensors_tick();
 
   static unsigned long lastMsg = 0;
   unsigned long now = millis();
@@ -45,7 +48,7 @@ void loop() {
     if (sensors_read(r) && publish(NODE_TOPIC, r)) lastGoodPublish = now;
   }
 
-  if (lastGoodPublish && now - lastGoodPublish > MAX_SILENCE_MS) {
+  if (now - lastGoodPublish > MAX_SILENCE_MS) {
     Serial.println("30 min without a publish - rebooting");
     Serial.flush();
     delay(100);

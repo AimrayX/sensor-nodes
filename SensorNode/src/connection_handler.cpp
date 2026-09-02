@@ -2,15 +2,15 @@
 #include "secrets.h"
 #include "payload.h"
 
+#include <esp_system.h>
+
 espMqttClient mqttClient;
 
 static unsigned long lastReconnect = 0;
+static volatile bool statusPending = false;
 
 static void onMqttConnect(bool sessionPresent) {
-  char buf[96];
-  snprintf(buf, sizeof(buf), "{\"reset\":%d,\"uptime\":%lu}",
-           esp_reset_reason(), millis() / 1000);
-  mqttClient.publish("flat/" NODE_NAME "/status", 0, true, buf);
+  statusPending = true;
 }
 
 static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
@@ -27,11 +27,12 @@ void connection_init() {
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) delay(250);
 
   if (!WiFi.isConnected()) {
-  Serial.printf("WiFi failed, status=%d\n", WiFi.status());
-} else {
-  Serial.printf("WiFi ok, ip=%s rssi=%d\n",
-                WiFi.localIP().toString().c_str(), WiFi.RSSI());
-}
+    Serial.printf("WiFi failed, status=%d\n", WiFi.status());
+  } else {
+    Serial.printf("WiFi ok, ip=%s rssi=%d\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  }
+
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
   mqttClient.setServer(MQTT_HOST, 1883);
@@ -52,6 +53,14 @@ void connection_loop() {
     return;
   }
 
+  if (statusPending && mqttClient.connected()) {
+    statusPending = false;
+    char buf[96];
+    snprintf(buf, sizeof(buf), "{\"reset\":%d,\"uptime\":%lu}",
+             (int)esp_reset_reason(), millis() / 1000);
+    mqttClient.publish("flat/" NODE_NAME "/status", 0, true, buf);
+  }
+
   if (!mqttClient.connected() && millis() - lastReconnect > 5000) {
     lastReconnect = millis();
     Serial.println("mqtt connect attempt");
@@ -62,7 +71,7 @@ void connection_loop() {
 bool publish(const char* topic, const Reading& r) {
   char payload[192];
   int len = build_payload(payload, sizeof(payload), r);
-  if (len < 0) { Serial.println("build_payload failed"); return false; }
+  if (len < 0) { Serial.println("build_payload failed or empty"); return false; }
 
   if (!mqttClient.connected()) {
     Serial.println("publish skipped, mqtt not connected");
