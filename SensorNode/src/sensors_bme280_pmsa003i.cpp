@@ -8,16 +8,28 @@ static Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
 static bool bmeOk = false;
 static bool aqiOk = false;
 
-enum class PmState { Sleeping, WarmingUp };
+// The PM sensor is duty-cycled: the fan is the wear item, so it runs for
+// ~38 s out of every 5 min. Wake -> WarmingUp (fan stabilises, output is
+// not trustworthy) -> Sampling (poll repeatedly, keep the last good frame)
+// -> Sleeping.
+enum class PmState { Sleeping, WarmingUp, Sampling };
 static PmState pmState = PmState::WarmingUp;
 
 static unsigned long pmCycleStart = 0;  // when the current 5 min period began
 static unsigned long pmPhaseStart = 0;  // when the current phase began
+static unsigned long pmLastPoll   = 0;  // last aqi.read() attempt
 
 static constexpr unsigned long PM_INTERVAL_MS = 5UL * 60UL * 1000UL;
 static constexpr unsigned long PM_WARMUP_MS   = 30UL * 1000UL;
+static constexpr unsigned long PM_SAMPLE_MS   = 8UL * 1000UL;
+static constexpr unsigned long PM_POLL_MS     = 1000UL;
+static constexpr uint8_t       PM_MIN_FRAMES  = 2;
+
+static PM25_AQI_Data pmLastFrame;
+static uint8_t       pmGoodFrames = 0;
 
 static float pmCache1 = NAN, pmCache25 = NAN, pmCache10 = NAN;
+static unsigned long pmCacheAt = 0;
 static bool  pmFresh  = false;
 
 bool sensors_init(TwoWire &wire) {
@@ -27,13 +39,18 @@ bool sensors_init(TwoWire &wire) {
 
   Serial.println(F("Setting up BME280"));
 
-  bmeOk = bme.begin(BME280_ADDRESS, &wire);            // 0x77
-  if (!bmeOk) bmeOk = bme.begin(BME280_ADDRESS_ALTERNATE, &wire);  // 0x76
+  bmeOk = bme.begin(BME280_ADDRESS, &wire);
+  if (!bmeOk) bmeOk = bme.begin(BME280_ADDRESS_ALTERNATE, &wire);
   if (bmeOk) {
+    // Forced mode at 30 s intervals, so power is irrelevant - buy noise
+    // reduction with oversampling instead. IIR stays OFF: in forced mode
+    // the filter state persists between measurements, so with a 30 s gap
+    // it would smear temperature over several minutes, and temperature is
+    // a control input.
     bme.setSampling(Adafruit_BME280::MODE_FORCED,
-                    Adafruit_BME280::SAMPLING_X1,
-                    Adafruit_BME280::SAMPLING_X1,
-                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::SAMPLING_X2,   // temperature
+                    Adafruit_BME280::SAMPLING_X16,  // pressure
+                    Adafruit_BME280::SAMPLING_X16,  // humidity
                     Adafruit_BME280::FILTER_OFF);
   } else {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
@@ -50,13 +67,14 @@ bool sensors_init(TwoWire &wire) {
   Serial.println("PMSA003I setup finished");
   Serial.println();
 
-  // Start in WarmingUp so the first reading arrives ~30 s after boot rather
-  // than 5 minutes in.
+  // Start in WarmingUp so the first reading arrives ~38 s after boot
   pmCycleStart = millis();
   pmPhaseStart = millis();
   pmState = PmState::WarmingUp;
 
-  return bmeOk && aqiOk;
+  // Degrade rather than fail: temperature/humidity/pressure alone is still
+  // a useful node. PM availability is reported separately above.
+  return bmeOk;
 }
 
 void sensors_tick() {
@@ -74,18 +92,41 @@ void sensors_tick() {
 
     case PmState::WarmingUp:
       if (now - pmPhaseStart >= PM_WARMUP_MS) {
-        PM25_AQI_Data data;
-        if (aqiOk && aqi.read(&data)) {
-          pmCache1  = data.pm10_standard;
-          pmCache25 = data.pm25_standard;
-          pmCache10 = data.pm100_standard;
+        pmGoodFrames = 0;
+        pmLastPoll   = now - PM_POLL_MS;  // poll immediately on entry
+        pmPhaseStart = now;
+        pmState      = PmState::Sampling;
+      }
+      break;
+
+    case PmState::Sampling:
+      // The module emits a frame about once per second; polling faster just
+      // re-reads the same buffer and hogs the I2C bus shared with the BME280.
+      if (now - pmLastPoll >= PM_POLL_MS) {
+        pmLastPoll = now;
+        PM25_AQI_Data d;
+        if (aqiOk && aqi.read(&d)) {   // read() validates the checksum
+          pmLastFrame = d;
+          pmGoodFrames++;
+        }
+      }
+
+      if (now - pmPhaseStart >= PM_SAMPLE_MS) {
+        if (pmGoodFrames >= PM_MIN_FRAMES) {
+          // _env is the atmospheric-environment output (vs _standard, CF=1).
+          // Note the naming: pm10_env is PM1.0, pm100_env is PM10.
+          pmCache1  = pmLastFrame.pm10_env;
+          pmCache25 = pmLastFrame.pm25_env;
+          pmCache10 = pmLastFrame.pm100_env;
+          pmCacheAt = now;
           pmFresh   = true;
         } else {
-          Serial.println("PMSA003I read failed");
+          Serial.printf("PMSA003I: only %u good frame(s), skipping cycle\n",
+                        pmGoodFrames);
         }
         digitalWrite(PIN_PM_SET, LOW);
         pmPhaseStart = now;
-        pmState = PmState::Sleeping;
+        pmState      = PmState::Sleeping;
       }
       break;
   }
@@ -105,13 +146,22 @@ bool sensors_read(Reading& out) {
     }
   }
 
+  // Offered until sensors_mark_sent() confirms delivery, but never longer
+  // than one cycle - a value older than that is superseded, not retried.
   if (pmFresh) {
-    out.pm1  = pmCache1;
-    out.pm25 = pmCache25;
-    out.pm10 = pmCache10;
-    pmFresh  = false;
-    any = true;
+    if (millis() - pmCacheAt < PM_INTERVAL_MS) {
+      out.pm1  = pmCache1;
+      out.pm25 = pmCache25;
+      out.pm10 = pmCache10;
+      any = true;
+    } else {
+      pmFresh = false;
+    }
   }
 
   return any;
+}
+
+void sensors_mark_sent() {
+  pmFresh = false;
 }

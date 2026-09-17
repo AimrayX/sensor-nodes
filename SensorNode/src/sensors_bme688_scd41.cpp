@@ -10,10 +10,12 @@ static bool bmeOk = false;
 static bool scdOk = false;
 
 static float co2Cache = NAN;
+static unsigned long co2CacheAt = 0;
 static bool  co2Fresh = false;
 
 static unsigned long lastScdPoll = 0;
 static constexpr unsigned long SCD_POLL_MS = 1000;
+static constexpr unsigned long CO2_MAX_AGE_MS = 60UL * 1000UL;
 
 bool sensors_init(TwoWire &wire) {
   Serial.println(F("Setting up BME688"));
@@ -23,11 +25,11 @@ bool sensors_init(TwoWire &wire) {
   if (!bmeOk) {
     Serial.println("BME688 not found, continuing without it");
   } else {
-    bme.setTemperatureOversampling(BME680_OS_1X);
-    bme.setHumidityOversampling(BME680_OS_1X);
-    bme.setPressureOversampling(BME680_OS_1X);
+    bme.setTemperatureOversampling(BME680_OS_2X);
+    bme.setHumidityOversampling(BME680_OS_16X);
+    bme.setPressureOversampling(BME680_OS_16X);
     bme.setIIRFilterSize(BME680_FILTER_SIZE_0);
-    bme.setGasHeater(0, 0);
+    bme.setGasHeater(0, 0);   // gas heater off: no BSEC, no IAQ output
   }
 
   Serial.println("BME688 setup finished");
@@ -71,7 +73,8 @@ bool sensors_init(TwoWire &wire) {
   Serial.println("SCD41 setup finished");
   Serial.println();
 
-  return bmeOk && scdOk;
+  // Degrade rather than fail, same as the BME280 variant.
+  return bmeOk || scdOk;
 }
 
 void sensors_tick() {
@@ -88,8 +91,9 @@ void sensors_tick() {
   uint16_t co2 = 0;
   float t = 0.0f, rh = 0.0f;
   if (scd.readMeasurement(co2, t, rh) == 0 && co2 != 0) {
-    co2Cache = co2;      // a CO2 of 0 means the sample is invalid
-    co2Fresh = true;
+    co2Cache   = co2;      // a CO2 of 0 means the sample is invalid
+    co2CacheAt = now;
+    co2Fresh   = true;
   }
 }
 
@@ -107,11 +111,20 @@ bool sensors_read(Reading& out) {
     }
   }
 
+  // A new CO2 sample lands every 5 s, so retrying a failed publish matters
+  // less here than for PM - but keep the interface identical across variants.
   if (co2Fresh) {
-    out.co2  = co2Cache;
-    co2Fresh = false;
-    any = true;
+    if (millis() - co2CacheAt < CO2_MAX_AGE_MS) {
+      out.co2 = co2Cache;
+      any = true;
+    } else {
+      co2Fresh = false;
+    }
   }
 
   return any;
+}
+
+void sensors_mark_sent() {
+  co2Fresh = false;
 }

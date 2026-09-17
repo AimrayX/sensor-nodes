@@ -45,7 +45,10 @@ void loop() {
   if (now - lastMsg > PUBLISH_INTERVAL_MS) {
     lastMsg = now;
     Reading r;
-    if (sensors_read(r) && publish(NODE_TOPIC, r)) lastGoodPublish = now;
+    if (sensors_read(r) && publish(NODE_TOPIC, r)) {
+      lastGoodPublish = now;
+      sensors_mark_sent();
+    }
   }
 
   if (now - lastGoodPublish > MAX_SILENCE_MS) {
