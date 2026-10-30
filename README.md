@@ -2,7 +2,7 @@
 
 ESP32-based environmental sensor nodes for home automation, publishing MQTT state updates for room-level monitoring.
 
-This project is designed for a small cluster of battery/USB-powered ESP32-C6 nodes that measure indoor or outdoor conditions and report them to an MQTT broker for use in dashboards, automations, or home assistant-style workflows.
+This project is designed for a small cluster of USB-powered ESP32-C6 nodes that measure indoor or outdoor conditions and report them to an MQTT broker for use in dashboards, automations, or home assistant-style workflows.
 
 ## Features
 
@@ -38,8 +38,6 @@ The repository currently includes two primary node variants:
 ```text
 .
 ├── .vscode/
-├── include/
-├── lib/
 ├── src/
 │   ├── connection_handler.cpp
 │   ├── connection_handler.h
